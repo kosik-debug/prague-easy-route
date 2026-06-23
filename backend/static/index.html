@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>Prague Easy Route</title>
+</head>
+<body>
+    <h1>Prague Easy Route</h1>
+
+    <input id="searchInput" placeholder="Zadej zastávku">
+    <button onclick="searchStop()">Vyhledat</button>
+
+    <pre id="results"></pre>
+
+    <script>
+        async function searchStop() {
+            const query = document.getElementById("searchInput").value;
+
+            const response = await fetch(`/search-stop?query=${query}`);
+            const data = await response.json();
+
+            document.getElementById("results").textContent =
+                JSON.stringify(data, null, 2);
+        }
+    </script>
+</body>
+</html>

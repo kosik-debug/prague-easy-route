@@ -1,8 +1,10 @@
 from routes.stops import router as stops_router
 from routes.route import router as route_router
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
+app.mount("/app", StaticFiles(directory="static", html=True), name="static")
 app.include_router(stops_router)
 app.include_router(route_router)
 
