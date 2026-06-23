@@ -25,3 +25,10 @@ def route(from_location: str, to_location: str):
         "reliability_score": 92,
         "reason": "Mene prestupu a nizke riziko zpozdeni"
     }
+import requests
+
+
+@app.get("/external-test")
+def external_test():
+    response = requests.get("https://api.github.com")
+    return response.json()
