@@ -7,21 +7,104 @@
 <body>
     <h1>Prague Easy Route</h1>
 
-    <input id="searchInput" placeholder="Zadej zastávku">
+    <input id="searchInput" placeholder="Zadej zastávku" oninput="autocompleteStop()">
     <button onclick="searchStop()">Vyhledat</button>
+    <button onclick="findNearestStops()">
 
-    <pre id="results"></pre>
+    📍 Najdi zastávky kolem mě
+
+</button>
+
+<h3>Poslední hledání</h3>
+<div id="history"></div>
+
+    <div id="results"></div>
 
     <script>
-        async function searchStop() {
-            const query = document.getElementById("searchInput").value;
+    async function searchStop() {
+        const query = document.getElementById("searchInput").value;
+        saveSearch(query);
+        const response = await fetch(`/search-stop?query=${query}`);
+        const data = await response.json();
 
-            const response = await fetch(`/search-stop?query=${query}`);
+        showStops(data);
+    }
+async function autocompleteStop() {
+    const query = document.getElementById("searchInput").value;
+
+    if (query.length < 2) {
+        document.getElementById("results").innerHTML = "";
+        return;
+    }
+
+    const response = await fetch(`/search-stop?query=${query}`);
+    const data = await response.json();
+
+    showStops(data);
+}
+
+    function findNearestStops() {
+        navigator.geolocation.getCurrentPosition(async function(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+
+            const response = await fetch(`/nearest?lat=${lat}&lon=${lon}`);
             const data = await response.json();
 
-            document.getElementById("results").textContent =
-                JSON.stringify(data, null, 2);
+            showStops(data);
+        });
+    }
+
+    function showStops(data) {
+        let html = "";
+
+        for (const stop of data) {
+            html += `
+                <div style="margin:10px;padding:10px;border:1px solid #ccc;">
+                    <b>${stop.name}</b><br>
+                    ID: ${stop.id}<br>
+                    GPS: ${stop.lat}, ${stop.lon}<br>
+                    ${stop.distance_m ? `Vzdálenost: ${stop.distance_m} m` : ""}
+                </div>
+            `;
         }
-    </script>
+
+        document.getElementById("results").innerHTML = html;
+    }
+
+    function saveSearch(query) {
+
+    let history =
+        JSON.parse(localStorage.getItem("searchHistory") || "[]");
+
+    if (!history.includes(query)) {
+        history.unshift(query);
+    }
+
+    history = history.slice(0, 5);
+
+    localStorage.setItem(
+        "searchHistory",
+        JSON.stringify(history)
+    );
+
+    renderHistory();
+}
+function renderHistory() {
+
+    const history =
+        JSON.parse(localStorage.getItem("searchHistory") || "[]");
+
+    let html = "";
+
+    for (const item of history) {
+        html += `<div>${item}</div>`;
+    }
+
+    document.getElementById("history").innerHTML = html;
+}
+renderHistory();
+
+</script>
 </body>
 </html>
