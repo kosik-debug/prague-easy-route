@@ -5,9 +5,13 @@ import zipfile
 import csv
 
 router = APIRouter()
+cached_stops = None
 
 
 def load_stops():
+    global cached_stops
+    if cached_stops is not None:
+        return cached_stops
     stops = []
 
     with zipfile.ZipFile("data/PID_GTFS.zip", "r") as zip_file:
@@ -24,11 +28,19 @@ def load_stops():
                     }
                 )
 
-                if len(stops) >= 20:
+                if len(stops) >= 2000:
                     break
 
-    return stops
+    cached_stops = stops
+    return chached_stops
 
+
+def search_stops(query: str):
+    results = []
+    for stop in load_stops():
+        if query.lower() in stop["name"].lower():
+            results.append(stop)
+    return results[:10]
 
 @router.get("/test-czech")
 def test_czech():
@@ -43,5 +55,11 @@ def test_czech():
 def stops():
     return JSONResponse(
         content=load_stops(),
+        media_type="application/json; charset=utf-8"
+    )
+@router.get("/search-stop")
+def search_stop(query: str):
+    return JSONResponse(
+        content=search_stops(query),
         media_type="application/json; charset=utf-8"
     )
