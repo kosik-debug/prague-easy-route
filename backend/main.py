@@ -1,7 +1,9 @@
+from routes.stops import router as stops_router
+
 from fastapi import FastAPI
 
 app = FastAPI()
-
+app.include_router(stops_router)
 
 @app.get("/health")
 def health():
@@ -18,6 +20,8 @@ def route(from_location: str, to_location: str):
     return {
         "from": from_location,
         "to": to_location,
-        "recommended_route": "Metro A",
-        "risk": "low"
+        "recommended_route": "Metro A + Bus 59",
+        "risk": "low",
+        "reliability_score": 92,
+        "reason": "Mene prestupu a nizke riziko zpozdeni"
     }
