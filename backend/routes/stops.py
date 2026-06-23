@@ -32,7 +32,7 @@ def load_stops():
                     break
 
     cached_stops = stops
-    return chached_stops
+    return cached_stops
 
 
 def search_stops(query: str):
