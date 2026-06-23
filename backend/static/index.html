@@ -103,8 +103,13 @@ function showMap(lat, lon, stops) {
 
     for (const stop of stops) {
         const marker = L.marker([stop.lat, stop.lon])
-            .addTo(map)
-            .bindPopup(`${stop.name}<br>${stop.distance_m} m`);
+    .addTo(map)
+    .bindPopup(`${stop.name}<br>${stop.distance_m} m`);
+
+marker.on("click", function () {
+    document.getElementById("fromInput").value = stop.name;
+    document.getElementById("toInput").focus();
+});
 
         markers.push(marker);
     }
