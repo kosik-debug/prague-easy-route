@@ -3,304 +3,371 @@
 <head>
     <meta charset="UTF-8">
     <title>Prague Easy Route</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="/app/css/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 </head>
 
 <body>
-    <h1>Prague Easy Route</h1>
+<div class="phone-app">
 
-    <h2>Vyhledat zastávku</h2>
-    <input id="searchInput" placeholder="Zadej zastávku" oninput="autocompleteStop()">
-    <button onclick="searchStop()">Vyhledat</button>
-    <button onclick="findNearestStops()">📍 Najdi zastávky kolem mě</button>
+    <div id="map"></div>
 
-    <h2>Najít trasu</h2>
-    <input id="fromInput" placeholder="Odkud" oninput="autocompleteRouteInput('fromInput')">
-    <input id="toInput" placeholder="Kam" oninput="autocompleteRouteInput('toInput')">
-    <button onclick="findRoute()">Najít trasu</button>
+    <div class="top-bar">
+        <button class="icon-button" onclick="findNearestStops()">⌖</button>
+        <div>
+            <div class="small-label">Prague Easy Route</div>
+            <div class="headline">Kam chceš jet?</div>
+        </div>
+    </div>
 
-    <div id="routeSuggestions"></div>
-    <div id="routeResult"></div>
+    <div class="search-panel">
+        <div class="field-group">
+            <label>Odkud</label>
+            <input id="fromInput" placeholder="Moje poloha" oninput="autocompleteRouteInput('fromInput')">
+        </div>
 
-    <h3>Poslední hledání</h3>
-    <div id="history"></div>
+        <div class="field-group">
+            <label>Kam</label>
+            <input id="toInput" placeholder="Hledat místo" oninput="autocompleteRouteInput('toInput')">
+        </div>
 
-    <div id="results"></div>
-    <div id="map" style="height: 400px; margin-top: 20px;"></div>
+        <div id="routeSuggestions"></div>
 
-    <script>
-        let map;
-        let markers = [];
-        let routeLine = null;
+        <button class="primary-button" onclick="findRoute()">Najít nejlepší trasu</button>
+    </div>
 
-        let activeRouteInput = null;
-        let selectedFromStop = null;
-        let selectedToStop = null;
+    <div class="recommendation-card" id="routeResult">
+        <div class="recommendation-label">Doporučení</div>
+        <h2>MHD bude dnes nejrychlejší</h2>
+        <p>Vyber odkud a kam. Aplikace ti doporučí nejvhodnější způsob cesty.</p>
 
-        async function searchStop() {
-            const query = document.getElementById("searchInput").value;
+        <div class="mode-grid">
+            <div class="mode-card active">
+                <div>🚇</div>
+                <strong>MHD</strong>
+                <span>—</span>
+            </div>
+            <div class="mode-card">
+                <div>🚗</div>
+                <strong>Auto</strong>
+                <span>—</span>
+            </div>
+            <div class="mode-card">
+                <div>🚶</div>
+                <strong>Pěšky</strong>
+                <span>—</span>
+            </div>
+        </div>
+    </div>
 
-            if (!query) {
-                return;
-            }
+    <div class="secondary-panel">
+        <button onclick="toggleSearch()">Vyhledat zastávku</button>
+        <button onclick="findNearestStops()">📍 Zastávky kolem mě</button>
+    </div>
 
-            saveSearch(query);
+    <div id="searchBox" class="hidden-panel">
+        <input id="searchInput" placeholder="Zadej zastávku" oninput="autocompleteStop()">
+        <button onclick="searchStop()">Vyhledat</button>
+        <div id="results"></div>
 
-            const response = await fetch(`/search-stop?query=${encodeURIComponent(query)}`);
-            const data = await response.json();
+        <h3>Poslední hledání</h3>
+        <div id="history"></div>
+    </div>
 
-            showStops(data);
+</div>
+
+<script>
+    let map;
+    let markers = [];
+    let routeLine = null;
+
+    let activeRouteInput = null;
+    let selectedFromStop = null;
+    let selectedToStop = null;
+
+    window.onload = function () {
+        map = L.map("map", {
+            zoomControl: false
+        }).setView([50.0755, 14.4378], 12);
+
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+            maxZoom: 19,
+            attribution: "&copy; OpenStreetMap &copy; CARTO"
+        }).addTo(map);
+
+        renderHistory();
+        findNearestStops();
+    };
+
+    function toggleSearch() {
+        document.getElementById("searchBox").classList.toggle("show");
+    }
+
+    async function searchStop() {
+        const query = document.getElementById("searchInput").value;
+        if (!query) return;
+
+        saveSearch(query);
+
+        const response = await fetch(`/search-stop?query=${encodeURIComponent(query)}`);
+        const data = await response.json();
+
+        showStops(data);
+    }
+
+    async function autocompleteStop() {
+        const query = document.getElementById("searchInput").value;
+
+        if (query.length < 2) {
+            document.getElementById("results").innerHTML = "";
+            return;
         }
 
-        async function autocompleteStop() {
-            const query = document.getElementById("searchInput").value;
+        const response = await fetch(`/search-stop?query=${encodeURIComponent(query)}`);
+        const data = await response.json();
 
-            if (query.length < 2) {
-                document.getElementById("results").innerHTML = "";
-                return;
-            }
+        showStops(data);
+    }
 
-            const response = await fetch(`/search-stop?query=${encodeURIComponent(query)}`);
-            const data = await response.json();
+    async function autocompleteRouteInput(inputId) {
+        activeRouteInput = inputId;
 
-            showStops(data);
+        if (inputId === "fromInput") selectedFromStop = null;
+        if (inputId === "toInput") selectedToStop = null;
+
+        const query = document.getElementById(inputId).value;
+
+        if (query.length < 2) {
+            document.getElementById("routeSuggestions").innerHTML = "";
+            return;
         }
 
-        async function findRoute() {
-            const fromStop = document.getElementById("fromInput").value;
-            const toStop = document.getElementById("toInput").value;
+        const response = await fetch(`/search-stop?query=${encodeURIComponent(query)}`);
+        const data = await response.json();
 
-            if (!fromStop || !toStop) {
-                document.getElementById("routeResult").innerHTML =
-                    "<p>Vyplň prosím odkud i kam.</p>";
-                return;
-            }
+        showRouteSuggestions(data);
+    }
 
-            const response = await fetch(
-                `/route?from_stop=${encodeURIComponent(fromStop)}&to_stop=${encodeURIComponent(toStop)}`
-            );
+    function showRouteSuggestions(data) {
+        let html = "";
 
-            const routeData = await response.json();
-
-            document.getElementById("routeResult").innerHTML = `
-                <div style="margin:10px;padding:10px;border:1px solid #ccc;">
-                    <b>Trasa</b><br>
-                    Z: ${routeData.from || fromStop}<br>
-                    Do: ${routeData.to || toStop}<br>
-                    Doporučení: ${routeData.recommended_route || "Není dostupné"}<br>
-                    Riziko: ${routeData.risk || "neznámé"}<br>
-                    Spolehlivost: ${routeData.reliability || "?"} %
+        for (const stop of data) {
+            html += `
+                <div
+                    class="suggestion-card"
+                    onclick="selectRouteStop('${activeRouteInput}', '${stop.id}', '${stop.name}', '${stop.lat}', '${stop.lon}')"
+                >
+                    <strong>${stop.name}</strong>
+                    <span>${stop.id}</span>
                 </div>
             `;
-
-            if (selectedFromStop && selectedToStop) {
-                drawRouteLine(selectedFromStop, selectedToStop);
-            } else {
-                document.getElementById("routeResult").innerHTML +=
-                    "<p>Pro vykreslení trasy vyber zastávky z našeptávače.</p>";
-            }
         }
 
-        function showMap(lat, lon, stops) {
-            if (!map) {
-                map = L.map("map").setView([lat, lon], 15);
+        document.getElementById("routeSuggestions").innerHTML = html;
+    }
 
-                L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                    maxZoom: 19
-                }).addTo(map);
-            } else {
-                map.setView([lat, lon], 15);
-            }
+    function selectRouteStop(inputId, stopId, stopName, lat, lon) {
+        const selectedStop = {
+            id: stopId,
+            name: stopName,
+            lat: lat,
+            lon: lon
+        };
 
-            for (const marker of markers) {
-                map.removeLayer(marker);
-            }
+        document.getElementById(inputId).value = stopName;
+        document.getElementById("routeSuggestions").innerHTML = "";
 
-            markers = [];
-
-            const userMarker = L.marker([lat, lon])
-                .addTo(map)
-                .bindPopup("Tvoje poloha");
-
-            markers.push(userMarker);
-
-            for (const stop of stops) {
-                const marker = L.marker([Number(stop.lat), Number(stop.lon)])
-                    .addTo(map)
-                    .bindPopup(`${stop.name}<br>${stop.distance_m || ""} m`);
-
-                marker.on("click", function () {
-                    document.getElementById("fromInput").value = stop.name;
-
-                    selectedFromStop = {
-                        id: stop.id,
-                        name: stop.name,
-                        lat: stop.lat,
-                        lon: stop.lon
-                    };
-
-                    document.getElementById("toInput").focus();
-                });
-
-                markers.push(marker);
-            }
+        if (inputId === "fromInput") {
+            selectedFromStop = selectedStop;
+            document.getElementById("toInput").focus();
         }
 
-        function findNearestStops() {
-            navigator.geolocation.getCurrentPosition(async function(position) {
+        if (inputId === "toInput") {
+            selectedToStop = selectedStop;
+        }
+    }
+
+    async function findRoute() {
+        const fromStop = document.getElementById("fromInput").value;
+        const toStop = document.getElementById("toInput").value;
+
+        if (!fromStop || !toStop) {
+            setRouteMessage("Doplň prosím odkud i kam.");
+            return;
+        }
+
+        const response = await fetch(
+            `/route?from_stop=${encodeURIComponent(fromStop)}&to_stop=${encodeURIComponent(toStop)}`
+        );
+
+        const routeData = await response.json();
+
+        document.getElementById("routeResult").innerHTML = `
+            <div class="recommendation-label">Doporučeno pro tebe</div>
+            <h2>${routeData.summary || "MHD bude dnes nejrychlejší"}</h2>
+            <p>Riziko: ${routeData.risk || "neznámé"} · Spolehlivost: ${routeData.reliability || "?"} %</p>
+
+            <div class="mode-grid">
+                <div class="mode-card active">
+                    <div>🚇</div>
+                    <strong>MHD</strong>
+                    <span>${routeData.reliability || 95} %</span>
+                </div>
+                <div class="mode-card">
+                    <div>🚗</div>
+                    <strong>Auto</strong>
+                    <span>později</span>
+                </div>
+                <div class="mode-card">
+                    <div>🚶</div>
+                    <strong>Pěšky</strong>
+                    <span>později</span>
+                </div>
+            </div>
+
+            <button class="primary-button">Zobrazit detail trasy</button>
+        `;
+
+        if (selectedFromStop && selectedToStop) {
+            drawRouteLine(selectedFromStop, selectedToStop);
+        } else {
+            setRouteMessage("Pro mapu vyber konkrétní zastávky z našeptávače.");
+        }
+    }
+
+    function setRouteMessage(message) {
+        document.getElementById("routeResult").innerHTML = `
+            <div class="recommendation-label">Doporučení</div>
+            <h2>${message}</h2>
+        `;
+    }
+
+    function findNearestStops() {
+        navigator.geolocation.getCurrentPosition(
+            async function(position) {
                 const lat = position.coords.latitude;
                 const lon = position.coords.longitude;
 
                 const response = await fetch(`/nearest?lat=${lat}&lon=${lon}`);
                 const data = await response.json();
 
-                showStops(data);
                 showMap(lat, lon, data);
-            });
+            },
+            function() {
+                map.setView([50.0755, 14.4378], 12);
+            }
+        );
+    }
+
+    function showMap(lat, lon, stops) {
+        map.setView([lat, lon], 15);
+
+        for (const marker of markers) {
+            map.removeLayer(marker);
         }
 
-        function showStops(data) {
-            let html = "";
+        markers = [];
 
-            for (const stop of data) {
-                html += `
-                    <div
-                        onclick="selectStop('${stop.name}')"
-                        style="margin:10px;padding:10px;border:1px solid #ccc;cursor:pointer;"
-                    >
-                        <b>${stop.name}</b><br>
-                        ID: ${stop.id}<br>
-                        GPS: ${stop.lat}, ${stop.lon}
-                        ${stop.distance_m ? `<br>Vzdálenost: ${stop.distance_m} m` : ""}
-                    </div>
-                `;
-            }
+        const userMarker = L.circleMarker([lat, lon], {
+            radius: 8,
+            fillOpacity: 1,
+            weight: 3
+        })
+            .addTo(map)
+            .bindPopup("Tvoje poloha");
 
-            document.getElementById("results").innerHTML = html;
-        }
+        markers.push(userMarker);
 
-        function selectStop(stopName) {
-            document.getElementById("searchInput").value = stopName;
-            document.getElementById("results").innerHTML = "";
-        }
+        for (const stop of stops) {
+            const marker = L.marker([Number(stop.lat), Number(stop.lon)])
+                .addTo(map)
+                .bindPopup(`${stop.name}<br>${stop.distance_m || ""} m`);
 
-        async function autocompleteRouteInput(inputId) {
-            activeRouteInput = inputId;
+            marker.on("click", function () {
+                document.getElementById("fromInput").value = stop.name;
 
-            if (inputId === "fromInput") {
-                selectedFromStop = null;
-            }
+                selectedFromStop = {
+                    id: stop.id,
+                    name: stop.name,
+                    lat: stop.lat,
+                    lon: stop.lon
+                };
 
-            if (inputId === "toInput") {
-                selectedToStop = null;
-            }
-
-            const query = document.getElementById(inputId).value;
-
-            if (query.length < 2) {
-                document.getElementById("routeSuggestions").innerHTML = "";
-                return;
-            }
-
-            const response = await fetch(`/search-stop?query=${encodeURIComponent(query)}`);
-            const data = await response.json();
-
-            showRouteSuggestions(data);
-        }
-
-        function showRouteSuggestions(data) {
-            let html = "";
-
-            for (const stop of data) {
-                html += `
-                    <div
-                        onclick="selectRouteStop('${activeRouteInput}', '${stop.id}', '${stop.name}', '${stop.lat}', '${stop.lon}')"
-                        style="margin:10px;padding:10px;border:1px solid #ccc;cursor:pointer;"
-                    >
-                        <b>${stop.name}</b><br>
-                        ID: ${stop.id}<br>
-                        GPS: ${stop.lat}, ${stop.lon}
-                    </div>
-                `;
-            }
-
-            document.getElementById("routeSuggestions").innerHTML = html;
-        }
-
-        function selectRouteStop(inputId, stopId, stopName, lat, lon) {
-            const selectedStop = {
-                id: stopId,
-                name: stopName,
-                lat: lat,
-                lon: lon
-            };
-
-            document.getElementById(inputId).value = stopName;
-            document.getElementById("routeSuggestions").innerHTML = "";
-
-            if (inputId === "fromInput") {
-                selectedFromStop = selectedStop;
                 document.getElementById("toInput").focus();
-            }
+            });
 
-            if (inputId === "toInput") {
-                selectedToStop = selectedStop;
-            }
+            markers.push(marker);
+        }
+    }
+
+    function drawRouteLine(fromStop, toStop) {
+        if (routeLine) {
+            map.removeLayer(routeLine);
         }
 
-        function drawRouteLine(fromStop, toStop) {
-            if (!map) {
-                map = L.map("map").setView([Number(fromStop.lat), Number(fromStop.lon)], 13);
+        routeLine = L.polyline(
+            [
+                [Number(fromStop.lat), Number(fromStop.lon)],
+                [Number(toStop.lat), Number(toStop.lon)]
+            ],
+            { weight: 5 }
+        ).addTo(map);
 
-                L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                    maxZoom: 19
-                }).addTo(map);
-            }
+        map.fitBounds(routeLine.getBounds(), {
+            padding: [40, 40]
+        });
+    }
 
-            if (routeLine) {
-                map.removeLayer(routeLine);
-            }
+    function showStops(data) {
+        let html = "";
 
-            routeLine = L.polyline(
-                [
-                    [Number(fromStop.lat), Number(fromStop.lon)],
-                    [Number(toStop.lat), Number(toStop.lon)]
-                ],
-                { weight: 5 }
-            ).addTo(map);
-
-            map.fitBounds(routeLine.getBounds());
+        for (const stop of data) {
+            html += `
+                <div
+                    class="suggestion-card"
+                    onclick="selectStop('${stop.name}')"
+                >
+                    <strong>${stop.name}</strong>
+                    <span>${stop.id}</span>
+                </div>
+            `;
         }
 
-        function saveSearch(query) {
-            let history = JSON.parse(localStorage.getItem("searchHistory") || "[]");
+        document.getElementById("results").innerHTML = html;
+    }
 
-            if (!history.includes(query)) {
-                history.unshift(query);
-            }
+    function selectStop(stopName) {
+        document.getElementById("searchInput").value = stopName;
+        document.getElementById("results").innerHTML = "";
+    }
 
-            history = history.slice(0, 5);
+    function saveSearch(query) {
+        let history = JSON.parse(localStorage.getItem("searchHistory") || "[]");
 
-            localStorage.setItem("searchHistory", JSON.stringify(history));
-
-            renderHistory();
+        if (!history.includes(query)) {
+            history.unshift(query);
         }
 
-        function renderHistory() {
-            const history = JSON.parse(localStorage.getItem("searchHistory") || "[]");
-
-            let html = "";
-
-            for (const item of history) {
-                html += `<div>${item}</div>`;
-            }
-
-            document.getElementById("history").innerHTML = html;
-        }
+        history = history.slice(0, 5);
+        localStorage.setItem("searchHistory", JSON.stringify(history));
 
         renderHistory();
-    </script>
+    }
+
+    function renderHistory() {
+        const history = JSON.parse(localStorage.getItem("searchHistory") || "[]");
+
+        let html = "";
+
+        for (const item of history) {
+            html += `<div>${item}</div>`;
+        }
+
+        document.getElementById("history").innerHTML = html;
+    }
+</script>
 </body>
 </html>

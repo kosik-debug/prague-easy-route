@@ -28,6 +28,12 @@ def route(from_location: str, to_location: str):
         "reliability_score": 92,
         "reason": "Mene prestupu a nizke riziko zpozdeni"
     }
+@app.get("/ping")
+def ping():
+    return {
+        "status": "ok",
+        "message": "Backend connected!"
+    }
 import requests
 
 
