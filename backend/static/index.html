@@ -34,7 +34,10 @@
         let map;
         let markers = [];
         let routeLine = null;
+
         let activeRouteInput = null;
+        let selectedFromStop = null;
+        let selectedToStop = null;
 
         async function searchStop() {
             const query = document.getElementById("searchInput").value;
@@ -92,14 +95,11 @@
                 </div>
             `;
 
-            const fromResponse = await fetch(`/search-stop?query=${encodeURIComponent(fromStop)}`);
-            const fromData = await fromResponse.json();
-
-            const toResponse = await fetch(`/search-stop?query=${encodeURIComponent(toStop)}`);
-            const toData = await toResponse.json();
-
-            if (fromData.length > 0 && toData.length > 0) {
-                drawRouteLine(fromData[0], toData[0]);
+            if (selectedFromStop && selectedToStop) {
+                drawRouteLine(selectedFromStop, selectedToStop);
+            } else {
+                document.getElementById("routeResult").innerHTML +=
+                    "<p>Pro vykreslení trasy vyber zastávky z našeptávače.</p>";
             }
         }
 
@@ -133,6 +133,14 @@
 
                 marker.on("click", function () {
                     document.getElementById("fromInput").value = stop.name;
+
+                    selectedFromStop = {
+                        id: stop.id,
+                        name: stop.name,
+                        lat: stop.lat,
+                        lon: stop.lon
+                    };
+
                     document.getElementById("toInput").focus();
                 });
 
@@ -181,6 +189,14 @@
         async function autocompleteRouteInput(inputId) {
             activeRouteInput = inputId;
 
+            if (inputId === "fromInput") {
+                selectedFromStop = null;
+            }
+
+            if (inputId === "toInput") {
+                selectedToStop = null;
+            }
+
             const query = document.getElementById(inputId).value;
 
             if (query.length < 2) {
@@ -200,11 +216,12 @@
             for (const stop of data) {
                 html += `
                     <div
-                        onclick="selectRouteStop('${stop.name}')"
+                        onclick="selectRouteStop('${activeRouteInput}', '${stop.id}', '${stop.name}', '${stop.lat}', '${stop.lon}')"
                         style="margin:10px;padding:10px;border:1px solid #ccc;cursor:pointer;"
                     >
                         <b>${stop.name}</b><br>
-                        ID: ${stop.id}
+                        ID: ${stop.id}<br>
+                        GPS: ${stop.lat}, ${stop.lon}
                     </div>
                 `;
             }
@@ -212,9 +229,25 @@
             document.getElementById("routeSuggestions").innerHTML = html;
         }
 
-        function selectRouteStop(stopName) {
-            document.getElementById(activeRouteInput).value = stopName;
+        function selectRouteStop(inputId, stopId, stopName, lat, lon) {
+            const selectedStop = {
+                id: stopId,
+                name: stopName,
+                lat: lat,
+                lon: lon
+            };
+
+            document.getElementById(inputId).value = stopName;
             document.getElementById("routeSuggestions").innerHTML = "";
+
+            if (inputId === "fromInput") {
+                selectedFromStop = selectedStop;
+                document.getElementById("toInput").focus();
+            }
+
+            if (inputId === "toInput") {
+                selectedToStop = selectedStop;
+            }
         }
 
         function drawRouteLine(fromStop, toStop) {
